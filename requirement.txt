@@ -1,0 +1,10 @@
+gruut
+anyascii
+inflect
+MeCab
+num2words
+pandas
+librosa
+transformers
+pytorch-lightning
+sklearn
