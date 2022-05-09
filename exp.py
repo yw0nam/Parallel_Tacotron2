@@ -6,8 +6,7 @@ from models.modules import ResidualEncoder, TextEncdoer
 from configs import *
 from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
-# %%
-from utils import get_sinusoid_encoding_table
+import torch
 # %%
 config = DataConfig(
     root_dir="/data1/spow12/datas/TTS/LJSpeech-1.1/",
@@ -19,7 +18,7 @@ dataset = TTSdataset(config)
 # %%
 train_loader = DataLoader(dataset, 4, num_workers=8,
                             collate_fn=Transformer_Collator(), 
-                            pin_memory=True,shuffle=True)
+                            pin_memory=True,shuffle=False)
 # %%
 for i in train_loader:
     input_, label = i
@@ -29,26 +28,18 @@ model_config = ModelConfig()
 
 # %%
 text_encoder = TextEncdoer(model_config, 130)
-encoder= ResidualEncoder(model_config)
+encoder= ResidualEncoder(model_config, 80)
 # %%
 text_out = text_encoder(input_['text'], input_['pos_text'])
-residual_out = encoder(input_['mel'], input_['pos_mel'])
 # %%
-text_out.shape
+speaker_emb_layer = nn.Embedding(2, 64, 0)
+speaker_emb = speaker_emb_layer(torch.LongTensor([0, 0, 0, 1]))
 # %%
-residual_out.shape
+x, attn, mu, log_var = encoder(text_out, input_['pos_text'],
+                       input_['mel'], input_['pos_mel'],
+                       speaker_emb)
 # %%
-pos_emb_layer = nn.Embedding.from_pretrained(
-    get_sinusoid_encoding_table(
-        model_config.max_seq_len+1,
-        model_config.r_hidden_size[0],
-        padding_idx=0
-    ),
-    freeze=True
-)
-pos_emb_layer.requires_grad_ = False
+x.shape
 # %%
-pos_mel_emb = pos_emb_layer(input_['pos_mel'])
-# %%
-pos_mel_emb.shape
+x
 # %%

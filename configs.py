@@ -61,6 +61,7 @@ class ModelConfig():
     #  Global Setting  #
     # ================ #
     max_seq_len: int = 1000
+    speaker_emb: int = 64
     # ================ #
     #   Text Encoder   #
     # ================ #
@@ -74,11 +75,10 @@ class ModelConfig():
     # ================ #
     # Residual Encoder #
     # ================ #
-    r_hidden_size: int = field(default_factory=lambda: [80, 64, 32, 16, 8])
+    r_hidden_size: int = 256
     r_lconv_kernel_size: int = 17
-    r_conv_kernel_size: int = 3
-    r_lconv_num: int = 3
+    r_lconv_num: int = 5
     r_n_head: int = 8
     r_dropout_p: float = 0.2
-    r_lconv_with_conv: int = 5
-    r_pool_size: int = 8
+    r_latent_size: int = 8
+    r_out_size: int = 32
