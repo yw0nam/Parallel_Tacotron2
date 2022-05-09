@@ -57,28 +57,38 @@ class ModelConfig():
     """
     Model Setting
     """
-    # ================ #
-    #  Global Setting  #
-    # ================ #
+    # ================== #
+    #   Global Setting   #
+    # ================== #
+    
     max_seq_len: int = 1000
     speaker_emb: int = 64
-    # ================ #
-    #   Text Encoder   #
-    # ================ #
-    t_hidden_size: int = 256
-    t_n_head: int = 8
+    hidden_size: int = 256
+    n_head: int = 8
+    
+    # ================== #
+    #    Text Encoder    #
+    # ================== #
+    
     t_embedding_size: int = 256
     t_dropout_p: float = 0.2
     t_conv_num: int = 3
     t_TF_encoder_num: int = 6
 
-    # ================ #
-    # Residual Encoder #
-    # ================ #
-    r_hidden_size: int = 256
+    # ================== #
+    #  Residual Encoder  #
+    # ================== #
+    
     r_lconv_kernel_size: int = 17
     r_lconv_num: int = 5
-    r_n_head: int = 8
     r_dropout_p: float = 0.2
     r_latent_size: int = 8
     r_out_size: int = 32
+    
+    # ================== #
+    # Duration Predictor #
+    # ================== #
+    
+    d_lconv_kernel_size: int = 5
+    d_dropout_p: float = 0.2
+    d_lconv_num: int = 4

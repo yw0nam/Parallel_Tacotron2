@@ -230,8 +230,7 @@ class LConvBlock(nn.Module):
 
     def forward(self, x, mask=None):
 
-        # x = x.contiguous().transpose(0, 1)
-        # x.shape = [batch_size, width, num_mel]
+        # x.shape = [batch_size, time_step, channel]
         residual = x
         x = self.act_linear(x)
         x = self.act(x)
@@ -247,5 +246,5 @@ class LConvBlock(nn.Module):
 
         if mask is not None:
             x = x.masked_fill(mask.unsqueeze(2), 0)
-
+    
         return x

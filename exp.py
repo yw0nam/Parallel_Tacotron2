@@ -43,3 +43,36 @@ x.shape
 # %%
 x
 # %%
+lconv_blocks = nn.ModuleList(
+    [
+        LConvBlock(
+            hidden_size=32,
+            kernel_size=3,
+            num_heads=8,
+            dropout=0.1,
+            stride=1
+        )
+        for _ in range(4)
+    ]
+)
+
+# %%
+temp = x
+for block in lconv_blocks:
+    temp = block(temp, input_['pos_text'].lt(1))
+# %%
+duration_out = nn.Sequential(
+    LinearNorm(32, 1),
+    nn.Softplus()
+)
+# %%
+d = duration_out(temp)
+# %%
+
+# %%
+x.shape
+# %%
+temp.masked_fill(input_['pos_text'].lt(1).unsqueeze(2), 0)
+# %%
+d.shape
+# %%

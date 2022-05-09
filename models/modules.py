@@ -12,7 +12,7 @@ class TextEncdoer(nn.Module):
         self.pos_emb_layer = nn.Embedding.from_pretrained(
             get_sinusoid_encoding_table(
                 model_config.max_seq_len+1,
-                model_config.t_hidden_size,
+                model_config.hidden_size,
                 padding_idx=0
             ),
             freeze=True
@@ -22,8 +22,8 @@ class TextEncdoer(nn.Module):
         self.conv_blocks = nn.ModuleList(
             [
                 ConvBlock(
-                    in_channel=model_config.t_hidden_size, 
-                    out_channel=model_config.t_hidden_size, 
+                    in_channel=model_config.hidden_size, 
+                    out_channel=model_config.hidden_size, 
                     dropout=model_config.t_dropout_p, 
                     activation=activation
                 )
@@ -34,8 +34,8 @@ class TextEncdoer(nn.Module):
         self.TF_encoder = nn.ModuleList(
             [
                 TransformerEncoder(
-                    hidden_size=model_config.t_hidden_size,
-                    num_heads=model_config.t_n_head,
+                    hidden_size=model_config.hidden_size,
+                    num_heads=model_config.n_head,
                     dropout_p=model_config.t_dropout_p,
                 )
                 for _ in range(model_config.t_TF_encoder_num)
@@ -76,9 +76,9 @@ class ResidualEncoder(nn.Module):
         self.lconv_blocks = nn.ModuleList(
             [
                 LConvBlock(
-                    hidden_size=model_config.r_hidden_size,
+                    hidden_size=model_config.hidden_size,
                     kernel_size=model_config.r_lconv_kernel_size,
-                    num_heads=model_config.r_n_head,
+                    num_heads=model_config.n_head,
                     dropout=model_config.r_dropout_p,
                     stride=1
                 )
@@ -87,23 +87,23 @@ class ResidualEncoder(nn.Module):
         )
         
         self.input_linear = LinearNorm(
-            num_mel*2+model_config.speaker_emb, model_config.r_hidden_size
+            num_mel*2+model_config.speaker_emb, model_config.hidden_size
         )
         
-        self.text_encoder_norm = nn.LayerNorm(model_config.r_hidden_size)
+        self.text_encoder_norm = nn.LayerNorm(model_config.hidden_size)
 
         self.attention = nn.MultiheadAttention(
-            embed_dim=model_config.r_hidden_size, 
+            embed_dim=model_config.hidden_size, 
             num_heads=1, 
             batch_first=True
         )
 
-        self.fc_mu = LinearNorm(model_config.r_hidden_size, model_config.r_latent_size)
-        self.fc_var = LinearNorm(model_config.r_hidden_size, model_config.r_latent_size)
+        self.fc_mu = LinearNorm(model_config.hidden_size, model_config.r_latent_size)
+        self.fc_var = LinearNorm(model_config.hidden_size, model_config.r_latent_size)
         
         self.out_linear = nn.Sequential(
             LinearNorm(
-            self.latent_size + model_config.speaker_emb + model_config.r_hidden_size,
+            self.latent_size + model_config.speaker_emb + model_config.hidden_size,
             model_config.r_out_size
             ),
             nn.Tanh()
@@ -160,3 +160,37 @@ class ResidualEncoder(nn.Module):
         x = x.masked_fill(text_mask.unsqueeze(-1), 0)
         
         return x, attn, mu, log_var
+    
+
+class DurationPredictor(nn.Module):
+    def __init__(self, model_config):
+        super(DurationPredictor, self).__init__()
+        
+        self.lconv_blocks = nn.ModuleList(
+            [
+                LConvBlock(
+                    hidden_size=model_config.r_out_size,
+                    kernel_size=model_config.d_lconv_kernel_size,
+                    num_heads=model_config.n_head,
+                    dropout=model_config.d_dropout_p,
+                    stride=1
+                )
+                for _ in range(model_config.d_lconv_num)
+            ]
+        )
+        
+        self.projection = nn.Sequential(
+            LinearNorm(model_config.r_out_size, 1),
+            nn.Softplus()
+        )
+    def forward(self, x, pos_text=None):
+        
+        text_mask = pos_text.lt(1)
+        for block in self.lconv_blocks(x):
+            x = block(x, text_mask)
+
+        dur = self.projection(x)
+        if text_mask is not None:
+            dur = dur.masked_fill(text_mask.unsqueeze(-1), 0)
+        
+        return x, dur.squeeze()
