@@ -92,3 +92,12 @@ class ModelConfig():
     d_lconv_kernel_size: int = 5
     d_dropout_p: float = 0.2
     d_lconv_num: int = 4
+    
+    # ================== #
+    # LearnedUpsampling  #
+    # ================== #
+    
+    l_conv_out_size: int = 8
+    l_conv_kernel_size: int = 3
+    l_swish_c_out_size: int = 2
+    l_swish_w_out_size: int = 16

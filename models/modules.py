@@ -1,8 +1,8 @@
-from .blocks import ConvBlock, TransformerEncoder, LConvBlock, ConvNorm1D, LinearNorm
+from .blocks import ConvBlock, TransformerEncoder, LConvBlock, ConvNorm1D, LinearNorm, SwishBlock
 import torch
 from torch import nn
-from utils import get_sinusoid_encoding_table
-
+from utils import get_sinusoid_encoding_table, get_mask_from_lengths
+import numpy as np
 class TextEncdoer(nn.Module):
     def __init__(self, model_config, vocab_size, activation=nn.ReLU()):
         super(TextEncdoer, self).__init__()
@@ -41,18 +41,17 @@ class TextEncdoer(nn.Module):
                 for _ in range(model_config.t_TF_encoder_num)
             ]
         )
-    def forward(self, x, pos_text):
+    def forward(self, x, pos_text, text_mask):
         x = self.text_emb_layer(x)
         pos_emb = self.pos_emb_layer(pos_text)
-        pos_mask = pos_text.lt(1)
                 
         for conv_block in self.conv_blocks:
-            x = conv_block(x, pos_mask)
+            x = conv_block(x, text_mask)
         
         x = x + pos_emb 
         
         for tf_block in self.TF_encoder:
-            x, _ = tf_block(x, pos_mask)
+            x, _ = tf_block(x, text_mask)
         
         return x
 
@@ -120,18 +119,16 @@ class ResidualEncoder(nn.Module):
         eps = torch.randn_like(std)
         return eps.mul(std).add_(mu)
     
-    def forward(self, text_encoder_out, pos_text, mel, pos_mel, speaker_emb, max_src_len=1000):
+    def forward(self, text_encoder_out, pos_text, text_mask, mel, pos_mel, mel_mask, speaker_emb, max_src_len=1000):
 
         text_encoding = self.text_encoder_norm(text_encoder_out)
         bs = text_encoding.size(0)
-        text_mask = pos_text.lt(1)
         
         if not self.training and mel is None:
             mu = log_var = torch.zeros([bs, text_mask.size(1), self.latent_size])
             attn = None
         else:
             mel_pos_emb = self.pos_emb_layer(pos_mel)
-            mel_mask = pos_mel.lt(1)
             speaker_embedding_m = speaker_emb.unsqueeze(1).expand(-1, mel_pos_emb.size(1), -1)
             
             x = torch.cat([mel, mel_pos_emb, speaker_embedding_m], dim=-1)
@@ -183,10 +180,9 @@ class DurationPredictor(nn.Module):
             LinearNorm(model_config.r_out_size, 1),
             nn.Softplus()
         )
-    def forward(self, x, pos_text=None):
+    def forward(self, x, text_mask=None):
         
-        text_mask = pos_text.lt(1)
-        for block in self.lconv_blocks(x):
+        for block in self.lconv_blocks:
             x = block(x, text_mask)
 
         dur = self.projection(x)
@@ -194,3 +190,86 @@ class DurationPredictor(nn.Module):
             dur = dur.masked_fill(text_mask.unsqueeze(-1), 0)
         
         return x, dur.squeeze()
+    
+class LearnedUpsampling(nn.Module):
+    def __init__(self, model_config):
+        super(LearnedUpsampling, self).__init__()
+        self.conv_c = ConvBlock(
+            model_config.r_out_size, 
+            model_config.l_conv_out_size,
+            0, 
+            model_config.l_conv_kernel_size,
+            nn.SiLU()
+        )
+        
+        self.swish_c = SwishBlock(
+            model_config.l_conv_out_size+2,
+            model_config.l_swish_c_out_size,
+            model_config.l_swish_c_out_size,
+        )
+
+        self.conv_w = ConvBlock(
+            model_config.r_out_size, 
+            model_config.l_conv_out_size,
+            0, 
+            model_config.l_conv_kernel_size,
+            nn.SiLU()
+        )
+        
+        self.swish_w = SwishBlock(
+            model_config.l_conv_out_size+2,
+            model_config.l_swish_w_out_size,
+            model_config.l_swish_w_out_size,
+        )
+        
+        self.proj_w = LinearNorm(model_config.l_swish_w_out_size, 1)
+        self.softmax_w = nn.Softmax(dim=2)
+
+        self.linear_einsum = LinearNorm(model_config.l_swish_c_out_size, model_config.r_out_size) # A
+        self.layer_norm = nn.LayerNorm(model_config.r_out_size)
+    
+    def forward(self, dur, V, pos_text, text_mask):
+        
+        # Duration Interpretation
+        batch_size = text_mask.size(0)
+        pred_mel_len = torch.round(dur.sum(-1)).type_as(pos_text)
+        pred_mel_len = torch.clamp(pred_mel_len, max=1000)
+        pred_max_mel_len = pred_mel_len.max().item()
+        pred_mel_mask = get_mask_from_lengths(pred_mel_len, pred_max_mel_len)
+        
+        # Prepare Attention Mask
+        text_mask_ = text_mask.unsqueeze(
+            1).expand(-1, pred_mel_mask.shape[1], -1)  # [B, tat_len, src_len]
+        pred_mel_mask_ = pred_mel_mask.unsqueeze(-1).expand(-1, -1, text_mask.shape[1])
+        attn_mask = torch.zeros((text_mask.shape[0], pred_mel_mask.shape[1], text_mask.shape[1])).type_as(pos_text)
+        
+        attn_mask = attn_mask.masked_fill(text_mask_, 1.)
+        attn_mask = attn_mask.masked_fill(pred_mel_mask_, 1.)
+        attn_mask = attn_mask.bool()
+        
+        # Token Boundary Grid
+        e_k = torch.cumsum(dur, dim=1)
+        s_k = e_k - dur
+        e_k = e_k.unsqueeze(1).expand(batch_size, pred_max_mel_len, -1)
+        s_k = s_k.unsqueeze(1).expand(batch_size, pred_max_mel_len, -1)
+        
+        t_arange = torch.arange(1, pred_max_mel_len+1).type_as(pos_text).unsqueeze(0).unsqueeze(-1).expand(
+            batch_size, -1, attn_mask.size(2)
+        )
+        S, E = (t_arange - s_k).masked_fill(attn_mask, 0), (e_k - t_arange).masked_fill(attn_mask, 0)
+        
+        # Attention (W)
+        W = self.swish_w(S, E, self.conv_w(V)) # [B, T, K, dim_w]
+        W = self.proj_w(W).squeeze(-1).masked_fill(text_mask_, -np.inf) #[B, T, K]
+        W = self.softmax_w(W) #[B, T, K]
+        W = W.masked_fill(pred_mel_mask_, 0.)
+        
+        # Auxiliary Attention Context (C)
+        C = self.swish_c(S, E, self.conv_c(V))
+
+        # Out
+        upsampled_rep = torch.matmul(W, V) + self.linear_einsum(torch.einsum('btk,btkp->btp', W, C)) # [B, T, M]
+        upsampled_rep = self.layer_norm(upsampled_rep)
+        upsampled_rep = upsampled_rep.masked_fill(pred_mel_mask.unsqueeze(-1), 0)
+
+        return upsampled_rep, pred_mel_mask, pred_mel_len, W

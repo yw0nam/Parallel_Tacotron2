@@ -147,14 +147,14 @@ class FFN(nn.Module):
 # ====================================== #
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, dropout, activation=nn.ReLU()):
+    def __init__(self, in_channel, out_channel, dropout, kernel_size=5, activation=nn.ReLU()):
         super(ConvBlock, self).__init__()
         
         self.layer = nn.Sequential(
             ConvNorm1D(
                 in_channel,
                 out_channel,
-                kernel_size=5,
+                kernel_size=kernel_size,
                 stride=1,
                 padding="same",
                 dilation=1),
@@ -163,11 +163,12 @@ class ConvBlock(nn.Module):
         )
         
         self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(out_channel)
+        # self.layer_norm = nn.LayerNorm(out_channel)
         
     def forward(self, x, mask=None):
         x = self.dropout(self.layer(x.contiguous().transpose(1, 2)))
-        x = self.layer_norm(x.contiguous().transpose(1, 2))
+        x = x.contiguous().transpose(1, 2)
+        # x = self.layer_norm(x.contiguous().transpose(1, 2))
         if mask is not None:
             # x = x.masked_fill(mask.lt(1).unsqueeze(-1), 0)
             x = x.masked_fill(mask.unsqueeze(-1), 0)
@@ -248,3 +249,27 @@ class LConvBlock(nn.Module):
             x = x.masked_fill(mask.unsqueeze(2), 0)
     
         return x
+
+
+class SwishBlock(nn.Module):
+    """ Swish Block """
+
+    def __init__(self, in_channels, hidden_dim, out_channels):
+        super(SwishBlock, self).__init__()
+        self.layer = nn.Sequential(
+            LinearNorm(in_channels, hidden_dim, bias=True),
+            nn.SiLU(),
+            LinearNorm(hidden_dim, out_channels, bias=True),
+            nn.SiLU(),
+        )
+
+    def forward(self, S, E, V):
+
+        out = torch.cat([
+            S.unsqueeze(-1),
+            E.unsqueeze(-1),
+            V.unsqueeze(1).expand(-1, E.size(1), -1, -1),
+        ], dim=-1)
+        out = self.layer(out)
+
+        return out
