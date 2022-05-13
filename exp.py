@@ -2,12 +2,12 @@
 from models.blocks import LightweightConv, LinearNorm, LConvBlock, ConvNorm1D, SwishBlock, ConvBlock
 import numpy as np
 import torch.nn as nn
-from models.modules import ResidualEncoder, TextEncdoer, DurationPredictor
+from models.modules import ResidualEncoder, TextEncdoer, DurationPredictor, LearnedUpsampling, Decoder
 from configs import *
 from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
 import torch
-from utils import get_mask_from_lengths
+from utils import get_mask_from_lengths, get_sinusoid_encoding_table
 # %%
 config = DataConfig(
     root_dir="/data1/spow12/datas/TTS/LJSpeech-1.1/",
@@ -40,96 +40,42 @@ x, attn, mu, log_var = encoder(text_out, input_['pos_text'], input_['pos_text'].
 # %%
 v, dur = duration_predictor(x, input_['pos_text'].lt(1))
 # %%
-text_mask = input_['pos_text'].lt(1)
-batch_size = text_mask.size(0)
+learned_upsampling = LearnedUpsampling(model_config)
 # %%
-pred_mel_len = torch.round(dur.sum(-1)).type_as(input_['pos_text'])
-pred_mel_len = torch.clamp(pred_mel_len, max=1000)
-pred_max_mel_len = pred_mel_len.max().item()
-pred_mel_mask = get_mask_from_lengths(pred_mel_len, pred_max_mel_len)
+upsampled_rep, pred_mel_mask, pred_mel_len, W = learned_upsampling(dur, v, input_['pos_text'], input_['pos_text'].lt(1))
 # %%
-text_mask_ = text_mask.unsqueeze(1).expand(-1, pred_mel_mask.shape[1], -1) # [B, tat_len, src_len]
-pred_mel_mask_ = pred_mel_mask.unsqueeze(-1).expand(-1, -1, text_mask.shape[1])
-attn_mask = torch.zeros((text_mask.shape[0], pred_mel_mask.shape[1], text_mask.shape[1])).type_as(input_['pos_text'])
-
-attn_mask = attn_mask.masked_fill(text_mask_, 1.)
-attn_mask = attn_mask.masked_fill(pred_mel_mask_, 1.)
-attn_mask = attn_mask.bool()
+decoder = Decoder(model_config)
 # %%
-e_k = torch.cumsum(dur, dim=1)
-s_k = e_k - dur
-e_k = e_k.unsqueeze(1).expand(batch_size, pred_max_mel_len, -1)
-s_k = s_k.unsqueeze(1).expand(batch_size, pred_max_mel_len, -1)
+mel_iters, mask = decoder(upsampled_rep, pred_mel_mask)
 # %%
-t_arange = torch.arange(1, pred_max_mel_len+1).type_as(input_['pos_text']).unsqueeze(0).unsqueeze(-1).expand(
-            batch_size, -1, attn_mask.size(2)
+lconv_blocks = nn.ModuleList(
+    [
+        LConvBlock(
+            hidden_size=32,
+            kernel_size=model_config.dc_lconv_kernel_size,
+            num_heads=model_config.n_head,
+            dropout=model_config.dc_dropout_p,
+            stride=1
         )
-# %%
-S, E = (t_arange - s_k).masked_fill(attn_mask, 0), (e_k - t_arange).masked_fill(attn_mask, 0)
-# %%
-conv_c = ConvBlock(
-    model_config.r_out_size,
-    8,
-    0,
-    3,
-    nn.SiLU()
+        for _ in range(model_config.dc_layer_num)
+    ]
+)
+projection = nn.ModuleList(
+    [
+        LinearNorm(
+            32, 80
+        )
+        for _ in range(model_config.dc_layer_num)
+    ]
 )
 
 # %%
-temp = conv_c(v)
-# %%
-conv_c = ConvBlock(
-    model_config.r_out_size,
-    model_config.l_conv_out_size,
-    0,
-    model_config.l_conv_kernel_size,
-    nn.SiLU()
-)
-
-swish_c = SwishBlock(
-    model_config.l_conv_out_size+2,
-    model_config.l_swish_c_out_size,
-    model_config.l_swish_c_out_size,
-)
-
-conv_w = ConvBlock(
-    model_config.r_out_size,
-    model_config.l_conv_out_size,
-    0,
-    model_config.l_conv_kernel_size,
-    nn.SiLU()
-)
-
-swish_w = SwishBlock(
-    model_config.l_conv_out_size+2,
-    model_config.l_swish_w_out_size,
-    model_config.l_swish_w_out_size,
-)
-
-proj_w = LinearNorm(model_config.l_swish_w_out_size, 1)
-softmax_w = nn.Softmax(dim=2)
-
-linear_einsum = LinearNorm(
-    model_config.l_swish_c_out_size, model_config.r_out_size)  # A
+x = upsampled_rep.masked_fill(pred_mel_mask.unsqueeze(-1), 0)
 
 # %%
-W = swish_w(S, E, conv_w(v)) # [B, T, K, dim_w]
+x = torch.tanh(lconv_blocks[0](
+                x, mask=pred_mel_mask
+            ))
 # %%
-W = proj_w(W).squeeze(-1).masked_fill(text_mask_, -np.inf) #[B, T, K]
-# %%
-W = softmax_w(W) #[B, T, K]
-# %%
-W = W.masked_fill(pred_mel_mask_, 0.)
-# %%
-C = swish_c(S, E, conv_c(v))
-
-# %%
-C.shape
-# %%
-torch.einsum('btk,btkp->btp', W, C).shape
-
-# %%
-W.shape
-# %%
-C.shape
+x.shape
 # %%

@@ -101,3 +101,11 @@ class ModelConfig():
     l_conv_kernel_size: int = 3
     l_swish_c_out_size: int = 2
     l_swish_w_out_size: int = 16
+    
+    # ================== #
+    #       Decoder      #
+    # ================== #
+
+    dc_lconv_kernel_size: int = 3
+    dc_dropout_p: float = 0.1
+    dc_layer_num: int = 6

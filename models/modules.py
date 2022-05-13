@@ -273,3 +273,65 @@ class LearnedUpsampling(nn.Module):
         upsampled_rep = upsampled_rep.masked_fill(pred_mel_mask.unsqueeze(-1), 0)
 
         return upsampled_rep, pred_mel_mask, pred_mel_len, W
+
+class Decoder(nn.Module):
+    def __init__(self, model_config, num_mel=80):
+        super(Decoder, self).__init__()
+        
+        self.max_seq_len = model_config.max_seq_len
+        self.n_layers = model_config.dc_layer_num
+        self.pos_emb_layer = nn.Embedding.from_pretrained(
+            get_sinusoid_encoding_table(
+                model_config.max_seq_len+1,
+                model_config.r_out_size,
+                padding_idx=0
+            ),
+            freeze=True
+        )
+        self.pos_emb_layer.requires_grad_ = False
+
+        self.lconv_blocks = nn.ModuleList(
+            [
+                LConvBlock(
+                    hidden_size=model_config.r_out_size,
+                    kernel_size=model_config.dc_lconv_kernel_size,
+                    num_heads=model_config.n_head,
+                    dropout=model_config.dc_dropout_p,
+                    stride=1
+                )
+                for _ in range(model_config.dc_layer_num)
+            ]
+        )
+        self.projection = nn.ModuleList(
+            [
+                LinearNorm(
+                    model_config.r_out_size, num_mel
+                )
+                for _ in range(model_config.dc_layer_num)
+            ]
+        )
+        
+    def forward(self, x, mask):
+        mel_iters = []
+        batch_size, max_len = x.shape[0], x.shape[1]
+
+        if not self.training and max_len > self.max_seq_len:
+            pos_emb = self.pos_emb_layer(torch.arange(max_len)).unsqueeze(
+                0).expand(batch_size, -1, -1)
+            x = x + pos_emb
+        else:
+            max_len = min(max_len, self.max_seq_len)
+            pos_emb = self.pos_emb_layer(torch.arange(max_len)).unsqueeze(
+                0).expand(batch_size, -1, -1)
+            mask = mask[:, :max_len]
+
+        for i, (conv, linear) in enumerate(zip(self.lconv_blocks, self.projection)):
+            x = x.masked_fill(mask.unsqueeze(-1), 0)
+            x = torch.tanh(conv(
+                x, mask=mask
+            ))
+            if self.training or not self.training and i == self.n_layers-1:
+                mel_iters.append(
+                    linear(x).masked_fill(mask.unsqueeze(-1), 0)
+                )
+        return mel_iters, mask
