@@ -8,6 +8,7 @@ from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
 import torch
 from utils import get_mask_from_lengths, get_sinusoid_encoding_table
+from models.soft_dtw_cuda import SoftDTW
 # %%
 config = DataConfig(
     root_dir="/data1/spow12/datas/TTS/LJSpeech-1.1/",
@@ -48,34 +49,9 @@ decoder = Decoder(model_config)
 # %%
 mel_iters, mask = decoder(upsampled_rep, pred_mel_mask)
 # %%
-lconv_blocks = nn.ModuleList(
-    [
-        LConvBlock(
-            hidden_size=32,
-            kernel_size=model_config.dc_lconv_kernel_size,
-            num_heads=model_config.n_head,
-            dropout=model_config.dc_dropout_p,
-            stride=1
-        )
-        for _ in range(model_config.dc_layer_num)
-    ]
-)
-projection = nn.ModuleList(
-    [
-        LinearNorm(
-            32, 80
-        )
-        for _ in range(model_config.dc_layer_num)
-    ]
-)
-
+soft_dtw = SoftDTW(True, gamma=0.5, warp=128)
 # %%
-x = upsampled_rep.masked_fill(pred_mel_mask.unsqueeze(-1), 0)
-
+soft_dtw(mel_iters[0].cuda(), label['mel'].cuda()).mean()
 # %%
-x = torch.tanh(lconv_blocks[0](
-                x, mask=pred_mel_mask
-            ))
-# %%
-x.shape
+label['mel'].shape
 # %%
