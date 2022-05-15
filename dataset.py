@@ -71,14 +71,10 @@ class TTSdataset(Dataset):
         pos_text = np.arange(1, len(seq) + 1)
         pos_mel = np.arange(1, mel.shape[0] + 1)
 
-        stop_token = [0]*(len(mel) - 1)
-        stop_token += [1]
-
         sample = {'text': seq,
                   'mel': mel,
                   'pos_text': pos_text,
                   'pos_mel': pos_mel,
-                  'stop_token': torch.tensor(stop_token, dtype=torch.float)
                   }
 
         return sample
@@ -146,10 +142,10 @@ class Transformer_Collator():
     def __call__(self, batch):
         text = [d['text'] for d in batch]
         mel = [d['mel'] for d in batch]
-        stop_token = [d['stop_token'] for d in batch]
         pos_mel = [d['pos_mel'] for d in batch]
         pos_text = [d['pos_text'] for d in batch]
         text_length = [len(d['text']) for d in batch]
+        mel_length = [len(d['mel']) for d in batch]
         
         text = [i for i, _ in sorted(
             zip(text, text_length), key=lambda x: x[1], reverse=True)]
@@ -159,14 +155,15 @@ class Transformer_Collator():
             zip(pos_text, text_length), key=lambda x: x[1], reverse=True)]
         pos_mel = [i for i, _ in sorted(
             zip(pos_mel, text_length), key=lambda x: x[1], reverse=True)]
-        stop_token = [i for i, _ in sorted(
-            zip(stop_token, text_length), key=lambda x: x[1], reverse=True)]
+        mel_length = [i for i, _ in sorted(
+            zip(mel_length, text_length), key=lambda x: x[1], reverse=True)]
+        text_length = [i for i in sorted(
+            zip(text_length), key=lambda x: x[0], reverse=True)]        
         
         text =_prepare_data(text).astype(np.int32)
         mel = _pad_mel(mel)
         pos_mel = _prepare_data(pos_mel).astype(np.int32)
         pos_text =_prepare_data(pos_text).astype(np.int32)
-        stop_tokens = pad_sequence(stop_token, batch_first=True, padding_value=0)
         model_input = {
             'text': torch.LongTensor(text),
             'mel' : torch.FloatTensor(mel),
@@ -175,7 +172,8 @@ class Transformer_Collator():
         }
         label = {
             'mel': torch.FloatTensor(mel),
-            'stop_tokens': stop_tokens
+            'mel_length': torch.LongTensor(mel_length),
+            'text_length': torch.LongTensor(text_length)
         }
         return model_input, label
     
