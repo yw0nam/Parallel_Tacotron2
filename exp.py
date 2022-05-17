@@ -1,13 +1,10 @@
 # %%
-from models.blocks import LightweightConv, LinearNorm, LConvBlock, ConvNorm1D, SwishBlock, ConvBlock
 import numpy as np
 import torch.nn as nn
-from models.modules import ResidualEncoder, TextEncdoer, DurationPredictor, LearnedUpsampling, Decoder
 from configs import *
 from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
 import torch
-from utils import get_mask_from_lengths, get_sinusoid_encoding_table
 from models.soft_dtw_cuda import SoftDTW
 from models.parallel_tacotron2 import ParallelTacotron2
 # %%
@@ -30,3 +27,28 @@ model_config = ModelConfig()
 model = ParallelTacotron2(model_config, 130, 80, 1)
 # %%
 out = model(**input_, speaker=torch.LongTensor([0, 0, 0, 0]))
+# %%
+out.keys()
+# %%
+mel, mel_length, text_length = label.values()
+# %%
+from models.loss import ParallelTacotron2Loss
+# %%
+train_config = TrainConfig()
+# %%
+loss = ParallelTacotron2Loss(train_config)
+
+# %%
+for i in label:
+    label[i] = label[i].cuda()
+# %%
+for i in list(out.keys())[1:]:
+    out[i] = out[i].cuda()
+# %%
+for i in range(len(out['mel_iters'])):
+    out['mel_iters'][i] = out['mel_iters'][i].cuda()
+# %%
+cal_loss = loss(out, label, 50000)
+# %%
+cal_loss
+# %%

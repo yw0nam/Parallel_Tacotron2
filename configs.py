@@ -5,8 +5,10 @@ class DataConfig():
     """
     Data Settings
     """
-    
-    # Audio Config
+
+    # ==================== #
+    #     Audio Config     #
+    # ==================== #
     n_fft: int = 1024
     sr: int = 22050
     preemphasis: float = 0.97
@@ -19,14 +21,18 @@ class DataConfig():
     trim_db: int = 60
     ref_db: int = 20
     max_norm: int = 1
-    # Text Config 
+    # ==================== #
+    #     Text Config      #
+    # ==================== #
     cleaners: str = "phoneme_cleaners"
     use_phonemes: bool =True
     language: str ="en-us"
     phoneme_cache_path: str= './phonemes/'
     symbol_length: int = 134
     enable_eos_bos: bool = True
-    # Data path config
+    # ==================== #
+    #   Data path config   #
+    # ==================== #
     train_csv: str = 'metadata.csv'
     val_csv: str = 'metadata.csv'
     root_dir: str = './data/LJSpeech-1.1'
@@ -37,21 +43,27 @@ class TrainConfig():
     """
     Train Setting
     """
-    bce_weight: int = 8
-    hidden_size: int = 256
-    decoder_prenet_hidden_size: int = 32
-    n_head: int = 8
-    embedding_size: int = 256
-    n_layers: int = 4
-    dropout_p: int = 0.2
-    warmup_step: int = 1600
-    training_step: int = 16000
+    # ==================== #
+    #  Training arguments  #
+    # ==================== #
+    
+    warmup_step: int = 1e+4
+    training_step: int = 5e+5
     lr: float = 0.001
     batch_size: int = 128
     checkpoint_path: str = './models/checkpoint/'
     log_dir: str = './models/tensorboard/'
     
-
+    # ==================== #
+    #     Loss Config      #
+    # ==================== #
+    gamma: float = 0.05
+    warp: int = 128
+    bandwidth: int = 60
+    loss_lambda: int = 100 # For Duration loss
+    kl_start: int = 6000
+    kl_end: int = 50000
+    kl_upper: float = 1
 @dataclass
 class ModelConfig():
     """
