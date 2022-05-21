@@ -23,10 +23,10 @@ class TTSdataset(Dataset):
         """
         if train:
             self.landmarks_frame = pd.read_csv(os.path.join(config.root_dir, config.train_csv), 
-                                            sep='|', names=['wav_name', 'text_1', 'text_2'])
+                                            sep='|', names=['wav_name', 'text_1', 'text_2', 'speaker_id'])
         else:
             self.landmarks_frame = pd.read_csv(os.path.join(config.root_dir, config.val_csv),
-                                               sep='|', names=['wav_name', 'text_1', 'text_2'])
+                                               sep='|', names=['wav_name', 'text_1', 'text_2', 'speaker_id'])
         self.config = config
         self.mel_transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=config.sr,
@@ -70,12 +70,15 @@ class TTSdataset(Dataset):
         mel = self.load_wav(wav_path)
         pos_text = np.arange(1, len(seq) + 1)
         pos_mel = np.arange(1, mel.shape[0] + 1)
-
-        sample = {'text': seq,
-                  'mel': mel,
-                  'pos_text': pos_text,
-                  'pos_mel': pos_mel,
-                  }
+        speaker_id = self.landmarks_frame['speaker_id'].iloc[idx]
+        
+        sample = {
+            'text': seq,
+            'mel': mel,
+            'pos_text': pos_text,
+            'pos_mel': pos_mel,
+            'speaker_id': speaker_id
+        }
 
         return sample
 
@@ -144,8 +147,10 @@ class Transformer_Collator():
         mel = [d['mel'] for d in batch]
         pos_mel = [d['pos_mel'] for d in batch]
         pos_text = [d['pos_text'] for d in batch]
+        speaker_id = [d['speaker_id'] for d in batch]
         text_length = [len(d['text']) for d in batch]
         mel_length = [len(d['mel']) for d in batch]
+        
         
         text = [i for i, _ in sorted(
             zip(text, text_length), key=lambda x: x[1], reverse=True)]
@@ -169,6 +174,7 @@ class Transformer_Collator():
             'mel' : torch.FloatTensor(mel),
             'pos_text': torch.LongTensor(pos_text),
             'pos_mel': torch.LongTensor(pos_mel),
+            'speaker_id':torch.LongTensor(speaker_id),
         }
         label = {
             'mel': torch.FloatTensor(mel),

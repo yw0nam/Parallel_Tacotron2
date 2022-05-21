@@ -15,11 +15,11 @@ class ParallelTacotron2(nn.Module):
         self.learned_upsampling = LearnedUpsampling(model_config)
         self.duration_predictor = DurationPredictor(model_config)
         self.decoder = Decoder(model_config)
-        self.speaker_emb_layer = nn.Embedding(self.num_speakers, model_config.speaker_emb, 0)
+        self.speaker_emb_layer = nn.Embedding(num_speakers, model_config.speaker_emb, 0)
         
-    def forward(self, text, pos_text, mel, pos_mel, speaker):
+    def forward(self, text, mel, pos_text, pos_mel, speaker_id):
         
-        speaker_emb = self.speaker_emb_layer(speaker)
+        speaker_emb = self.speaker_emb_layer(speaker_id)
         
         text_mask = pos_text.lt(1)
         mel_mask = pos_mel.lt(1)
@@ -34,10 +34,10 @@ class ParallelTacotron2(nn.Module):
         v, dur = self.duration_predictor(x, text_mask)
 
         upsampled_rep, pred_mel_mask, _, W = self.learned_upsampling(dur, 
-                                                                                v, 
-                                                                                pos_text, 
-                                                                                text_mask
-                                                                                )
+                                                                    v, 
+                                                                    pos_text, 
+                                                                    text_mask
+                                                                    )
         
         mel_iters, _ = self.decoder(upsampled_rep, pred_mel_mask)
         

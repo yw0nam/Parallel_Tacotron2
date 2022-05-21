@@ -11,7 +11,6 @@ class DataConfig():
     # ==================== #
     n_fft: int = 1024
     sr: int = 22050
-    preemphasis: float = 0.97
     hop_length: int = 256  
     win_length: int = 1024
     n_mels: int  = 80  # Number of Mel banks to generate
@@ -21,22 +20,22 @@ class DataConfig():
     trim_db: int = 60
     ref_db: int = 20
     max_norm: int = 1
+    speaker_num: int = 1
     # ==================== #
     #     Text Config      #
     # ==================== #
     cleaners: str = "phoneme_cleaners"
-    use_phonemes: bool =True
+    use_phonemes: bool = True
     language: str ="en-us"
     phoneme_cache_path: str= './phonemes/'
-    symbol_length: int = 134
+    vocab_size: int = 130
     enable_eos_bos: bool = True
     # ==================== #
     #   Data path config   #
     # ==================== #
-    train_csv: str = 'metadata.csv'
-    val_csv: str = 'metadata.csv'
+    train_csv: str = 'metadata_train.csv'
+    val_csv: str = 'metadata_val.csv'
     root_dir: str = './data/LJSpeech-1.1'
-    train_samples: int = 12000
     
 @dataclass
 class TrainConfig():
@@ -51,9 +50,12 @@ class TrainConfig():
     training_step: int = 5e+5
     lr: float = 0.001
     batch_size: int = 128
-    checkpoint_path: str = './models/checkpoint/'
-    log_dir: str = './models/tensorboard/'
-    
+    exp_name: str = './models'
+    checkpoint_path: str = 'checkpoint/'
+    log_dir: str = 'tensorboard/'
+    num_workers: int = 8
+    accumulate_grad: int = 8
+    gradient_clip: int = 1
     # ==================== #
     #     Loss Config      #
     # ==================== #
@@ -64,6 +66,7 @@ class TrainConfig():
     kl_start: int = 6000
     kl_end: int = 50000
     kl_upper: float = 1
+    
 @dataclass
 class ModelConfig():
     """

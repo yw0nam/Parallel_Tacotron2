@@ -316,12 +316,12 @@ class Decoder(nn.Module):
         batch_size, max_len = x.shape[0], x.shape[1]
 
         if not self.training and max_len > self.max_seq_len:
-            pos_emb = self.pos_emb_layer(torch.arange(max_len)).unsqueeze(
+            pos_emb = self.pos_emb_layer(torch.arange(max_len).cuda()).unsqueeze(
                 0).expand(batch_size, -1, -1)
             x = x + pos_emb
         else:
             max_len = min(max_len, self.max_seq_len)
-            pos_emb = self.pos_emb_layer(torch.arange(max_len)).unsqueeze(
+            pos_emb = self.pos_emb_layer(torch.arange(max_len).cuda()).unsqueeze(
                 0).expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
 
