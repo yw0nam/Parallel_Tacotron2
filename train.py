@@ -13,7 +13,8 @@ train_config = TrainConfig(
     log_dir=os.path.join(save_path, 'tensorboard'),
     exp_name='test',
     gradient_clip=0.2,
-    accumulate_grad=8
+    accumulate_grad=8,
+    resume_from_checkpoint='/data1/spow12/model_weights/TTS/parallel_tacotron2/checkpoint/test/epoch_36.ckpt'
 )
 model_config = ModelConfig()
 

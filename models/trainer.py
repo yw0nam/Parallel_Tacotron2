@@ -37,7 +37,7 @@ def fit_model(model_config, data_config, train_config):
     checkpoint_callback = plc.ModelCheckpoint(
         monitor="step",
         dirpath=os.path.join(train_config.checkpoint_path, train_config.exp_name),
-        filename="{epoch:02d}-{global_step}",
+        filename="{step:06d}-{val_total_loss:.5f}",
         save_top_k=5,
         mode="max",
     )
@@ -58,6 +58,6 @@ def fit_model(model_config, data_config, train_config):
         accumulate_grad_batches=train_config.accumulate_grad,
         logger=logger,
         gradient_clip_val=train_config.gradient_clip,
+        resume_from_checkpoint=train_config.resume_from_checkpoint
     )
     trainer.fit(model)
-    model.writer.close()

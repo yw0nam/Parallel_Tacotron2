@@ -59,7 +59,7 @@ class TrainConfig():
     gradient_clip: float = 0.2
     anneal_steps: list = field(default_factory=lambda: [3e+5, 4e+5, 5e+5])
     anneal_rate: float = 0.3
-    
+    resume_from_checkpoint: str = None
     # ==================== #
     #     Loss Config      #
     # ==================== #

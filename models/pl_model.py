@@ -20,7 +20,6 @@ class PL_model(pl.LightningModule):
         
         self.model = ParallelTacotron2(model_config, vocab_size, num_mels, num_speakers)
         self.loss = ParallelTacotron2Loss(train_config)
-        # self.writer = SummaryWriter()
         self.draw_step = 0
         
     def forward(self, data):
@@ -66,6 +65,7 @@ class PL_model(pl.LightningModule):
                 self.logger.experiment.add_figure(
                     'attention', fig, self.global_step)
                 self.draw_step += self.train_config.attn_draw_step
+                plt.close('all')
                 break
                 
     def configure_optimizers(self):
