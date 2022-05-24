@@ -6,7 +6,10 @@ from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
 import torch
 from models.soft_dtw_cuda import SoftDTW
-from models.parallel_tacotron2 import ParallelTacotron2
+from models.pl_model import PL_model
+# %%
+import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
 # %%
 config = DataConfig(
     root_dir="/data1/spow12/datas/TTS/LJSpeech-1.1/",
@@ -23,32 +26,34 @@ for i in train_loader:
     break
 # %%
 model_config = ModelConfig()
-# %%
-model = ParallelTacotron2(model_config, 130, 80, 1)
-# %%
-out = model(**input_, speaker=torch.LongTensor([0, 0, 0, 0]))
-# %%
-out.keys()
-# %%
-mel, mel_length, text_length = label.values()
-# %%
-from models.loss import ParallelTacotron2Loss
-# %%
 train_config = TrainConfig()
 # %%
-loss = ParallelTacotron2Loss(train_config)
+model = PL_model(
+    train_config, 
+    model_config,
+    config.vocab_size,
+    config.n_mels,
+    config.speaker_num
+)
+# %%
+out = model(input_)
+# %%
+out['W'].size()
+# %%
+plt.imshow(out['attn'].detach()[0].numpy())
+# %%
+fig = plt.figure(figsize=(25, 15))
+for i in range(1, 5):
+    ax = fig.add_subplot(4, 1, i)
+    ax.imshow(out['attn'].detach()[i-1])
+    ax.set_title("attention_%d"%i)
 
 # %%
-for i in label:
-    label[i] = label[i].cuda()
-# %%
-for i in list(out.keys())[1:]:
-    out[i] = out[i].cuda()
-# %%
-for i in range(len(out['mel_iters'])):
-    out['mel_iters'][i] = out['mel_iters'][i].cuda()
-# %%
-cal_loss = loss(out, label, 50000)
-# %%
-cal_loss
+writer = SummaryWriter()
+writer.add_figure('attention', fig, 0)
+writer.add_image('attn_2', out['attn'][1], 0, dataformats='HW')
+writer.add_image('attn_3', out['attn'][2], 0, dataformats='HW')
+writer.add_image('attn_4', out['attn'][3], 0, dataformats='HW')
+
+
 # %%

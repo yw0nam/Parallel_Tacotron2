@@ -5,7 +5,7 @@ import pytorch_lightning.callbacks as plc
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from dataset import Transformer_Collator, TTSdataset
-
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 def fit_model(model_config, data_config, train_config):
     
@@ -35,22 +35,23 @@ def fit_model(model_config, data_config, train_config):
     setattr(model, 'val_dataloader', lambda: val_loader)
     
     checkpoint_callback = plc.ModelCheckpoint(
-        monitor="val_total_loss",
+        monitor="step",
         dirpath=os.path.join(train_config.checkpoint_path, train_config.exp_name),
-        filename="{epoch:02d}-{val_loss:.5f}",
-        save_top_k=1,
-        mode="min",
+        filename="{epoch:02d}-{global_step}",
+        save_top_k=5,
+        mode="max",
     )
     
     logger = TensorBoardLogger(train_config.log_dir, name=train_config.exp_name)
-
+    lr_monitor = LearningRateMonitor(logging_interval='step')
+    
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=num_gpu,
         strategy="ddp",
         max_steps=train_config.training_step,
         checkpoint_callback=True,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, lr_monitor],
         precision=16,
         amp_backend="native",
         profiler="simple",
@@ -59,3 +60,4 @@ def fit_model(model_config, data_config, train_config):
         gradient_clip_val=train_config.gradient_clip,
     )
     trainer.fit(model)
+    model.writer.close()

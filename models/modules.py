@@ -7,17 +7,14 @@ class TextEncdoer(nn.Module):
     def __init__(self, model_config, vocab_size, activation=nn.ReLU()):
         super(TextEncdoer, self).__init__()
         
+        self.hidden_size = model_config.hidden_size
+        self.max_seq_len = model_config.max_seq_len
         self.text_emb_layer = nn.Embedding(vocab_size ,model_config.t_embedding_size)
-        
-        self.pos_emb_layer = nn.Embedding.from_pretrained(
-            get_sinusoid_encoding_table(
-                model_config.max_seq_len+1,
-                model_config.hidden_size,
-                padding_idx=0
-            ),
-            freeze=True
+        self.pos_enc = nn.Parameter(
+            get_sinusoid_encoding_table(model_config.max_seq_len+1,
+                                        model_config.hidden_size).unsqueeze(0),
+            requires_grad=False,
         )
-        self.pos_emb_layer.requires_grad_ = False
         
         self.conv_blocks = nn.ModuleList(
             [
@@ -41,14 +38,23 @@ class TextEncdoer(nn.Module):
                 for _ in range(model_config.t_TF_encoder_num)
             ]
         )
-    def forward(self, x, pos_text, text_mask):
+    def forward(self, x, text_mask):
+        batch_size, max_len = x.shape[0], x.shape[1]
         x = self.text_emb_layer(x)
-        pos_emb = self.pos_emb_layer(pos_text)
                 
         for conv_block in self.conv_blocks:
             x = conv_block(x, text_mask)
         
-        x = x + pos_emb 
+        if not self.training and x.shape[1] > self.max_seq_len:
+            x = x + get_sinusoid_encoding_table(
+                x.shape[1], self.hidden_size
+            )[: x.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
+                x.device
+            )
+        else:
+            x = x + self.pos_enc[
+                :, :max_len, :
+            ].expand(batch_size, -1, -1)
         
         for tf_block in self.TF_encoder:
             x, _ = tf_block(x, text_mask)
@@ -61,16 +67,11 @@ class ResidualEncoder(nn.Module):
         super(ResidualEncoder, self).__init__()
 
         self.latent_size = model_config.r_latent_size
-                
-        self.pos_emb_layer = nn.Embedding.from_pretrained(
-            get_sinusoid_encoding_table(
-                model_config.max_seq_len+1,
-                num_mel,
-                padding_idx=0
-            ),
-            freeze=True
+        self.pos_enc = nn.Parameter(
+            get_sinusoid_encoding_table(model_config.max_seq_len+1,
+                                        num_mel).unsqueeze(0),
+            requires_grad=False,
         )
-        self.pos_emb_layer.requires_grad_ = False
         
         self.lconv_blocks = nn.ModuleList(
             [
@@ -119,16 +120,18 @@ class ResidualEncoder(nn.Module):
         eps = torch.randn_like(std)
         return eps.mul(std).add_(mu)
     
-    def forward(self, text_encoder_out, pos_text, text_mask, mel, pos_mel, mel_mask, speaker_emb, max_src_len=1000):
+    def forward(self, text_encoder_out, text_mask, mel, mel_mask, speaker_emb):
 
         text_encoding = self.text_encoder_norm(text_encoder_out)
-        bs = text_encoding.size(0)
+        batch_size, max_len = text_encoding.shape[0], mel.shape[1]
         
         if not self.training and mel is None:
-            mu = log_var = torch.zeros([bs, text_mask.size(1), self.latent_size])
+            mu = log_var = torch.zeros([batch_size, text_mask.size(1), self.latent_size])
             attn = None
         else:
-            mel_pos_emb = self.pos_emb_layer(pos_mel)
+            mel_pos_emb = self.pos_enc[
+                :, :max_len, :
+            ].expand(batch_size, -1, -1)
             speaker_embedding_m = speaker_emb.unsqueeze(1).expand(-1, mel_pos_emb.size(1), -1)
             
             x = torch.cat([mel, mel_pos_emb, speaker_embedding_m], dim=-1)
@@ -280,15 +283,11 @@ class Decoder(nn.Module):
         
         self.max_seq_len = model_config.max_seq_len
         self.n_layers = model_config.dc_layer_num
-        self.pos_emb_layer = nn.Embedding.from_pretrained(
-            get_sinusoid_encoding_table(
-                model_config.max_seq_len+1,
-                model_config.r_out_size,
-                padding_idx=0
-            ),
-            freeze=True
+        self.pos_enc = nn.Parameter(
+            get_sinusoid_encoding_table(model_config.max_seq_len+1,
+                                        model_config.r_out_size).unsqueeze(0),
+            requires_grad=False,
         )
-        self.pos_emb_layer.requires_grad_ = False
 
         self.lconv_blocks = nn.ModuleList(
             [
@@ -316,13 +315,15 @@ class Decoder(nn.Module):
         batch_size, max_len = x.shape[0], x.shape[1]
 
         if not self.training and max_len > self.max_seq_len:
-            pos_emb = self.pos_emb_layer(torch.arange(max_len).cuda()).unsqueeze(
-                0).expand(batch_size, -1, -1)
-            x = x + pos_emb
+            pos = get_sinusoid_encoding_table(
+                max_len, self.hidden_size
+            )[: max_len, :].unsqueeze(0).expand(batch_size, -1, -1).type_as(x)
+            x = x + pos
         else:
             max_len = min(max_len, self.max_seq_len)
-            pos_emb = self.pos_emb_layer(torch.arange(max_len).cuda()).unsqueeze(
-                0).expand(batch_size, -1, -1)
+            x = x + self.pos_enc[
+                :, :max_len, :
+            ].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
 
         for i, (conv, linear) in enumerate(zip(self.lconv_blocks, self.projection)):

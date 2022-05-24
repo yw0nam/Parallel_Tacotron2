@@ -1,9 +1,11 @@
 import torch
 from torch import nn
 import pytorch_lightning as pl
-import transformers
+from models.scheduler import ScheduledOptim
 from models.parallel_tacotron2 import ParallelTacotron2
 from models.loss import ParallelTacotron2Loss
+from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
 
 class PL_model(pl.LightningModule):
     def __init__(self, train_config, model_config, vocab_size, num_mels, num_speakers):
@@ -18,7 +20,8 @@ class PL_model(pl.LightningModule):
         
         self.model = ParallelTacotron2(model_config, vocab_size, num_mels, num_speakers)
         self.loss = ParallelTacotron2Loss(train_config)
-        
+        self.writer = SummaryWriter()
+
     def forward(self, data):
         return self.model(**data)
     
@@ -47,13 +50,20 @@ class PL_model(pl.LightningModule):
         self.log("val_duration_loss", duration_loss, on_epoch=True, on_step=False)
         self.log("val_kl_loss", kl_loss, on_epoch=True, on_step=False)
         
+        if self.global_step % self.train_config.attn_draw_step == 0:
+            self.make_attention_figure(preds['attn'].detach().cpu())
+            
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.train_config.lr)
-
-        scheduler = transformers.get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=self.train_config.warmup_step,
-            num_training_steps=self.train_config.training_step
-        )
-        return [optimizer], [scheduler]
+        
+        scheduler = ScheduledOptim(optimizer, self.train_config)
+        return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
+    
+    def make_attention_figure(self, attn):
+        fig = plt.figure(figsize=(25, 15))
+        for i in range(1, 5):
+            ax = fig.add_subplot(4, 1, i)
+            ax.imshow(attn[i-1])
+            ax.set_title("attention_%d" % i)
+        self.writer.add_figure('attention', fig, self.global_step)

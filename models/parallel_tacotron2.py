@@ -24,11 +24,11 @@ class ParallelTacotron2(nn.Module):
         text_mask = pos_text.lt(1)
         mel_mask = pos_mel.lt(1)
         
-        text_out = self.text_encoder(text, pos_text, text_mask)
+        text_out = self.text_encoder(text, text_mask)
         
         x, attn, mu, log_var = self.residual_encoder(
-            text_out, pos_text, text_mask, mel,
-            pos_mel, mel_mask, speaker_emb
+            text_out, text_mask, mel, 
+            mel_mask, speaker_emb
         )
         
         v, dur = self.duration_predictor(x, text_mask)
