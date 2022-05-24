@@ -20,8 +20,9 @@ class PL_model(pl.LightningModule):
         
         self.model = ParallelTacotron2(model_config, vocab_size, num_mels, num_speakers)
         self.loss = ParallelTacotron2Loss(train_config)
-        self.writer = SummaryWriter()
-
+        # self.writer = SummaryWriter()
+        self.draw_step = 0
+        
     def forward(self, data):
         return self.model(**data)
     
@@ -50,9 +51,23 @@ class PL_model(pl.LightningModule):
         self.log("val_duration_loss", duration_loss, on_epoch=True, on_step=False)
         self.log("val_kl_loss", kl_loss, on_epoch=True, on_step=False)
         
-        if self.global_step % self.train_config.attn_draw_step == 0:
-            self.make_attention_figure(preds['attn'].detach().cpu())
-            
+        return preds
+    
+    def validation_epoch_end(self, validation_step_outputs):
+        if self.draw_step >= self.global_step:
+            for out in validation_step_outputs:
+                attn = out['attn'].detach().cpu()
+                fig = plt.figure(figsize=(25, 15))
+                for i in range(1, self.train_config.batch_size + 1):
+                    ax = fig.add_subplot(self.train_config.batch_size, 1, i)
+                    ax.imshow(attn[i-1])
+                    ax.set_title("attention_%d" % i)
+                # self.writer.add_figure('attention', fig, self.global_step)
+                self.logger.experiment.add_figure(
+                    'attention', fig, self.global_step)
+                self.draw_step += self.train_config.attn_draw_step
+                break
+                
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.train_config.lr)
@@ -60,10 +75,3 @@ class PL_model(pl.LightningModule):
         scheduler = ScheduledOptim(optimizer, self.train_config)
         return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
     
-    def make_attention_figure(self, attn):
-        fig = plt.figure(figsize=(25, 15))
-        for i in range(1, 5):
-            ax = fig.add_subplot(4, 1, i)
-            ax.imshow(attn[i-1])
-            ax.set_title("attention_%d" % i)
-        self.writer.add_figure('attention', fig, self.global_step)

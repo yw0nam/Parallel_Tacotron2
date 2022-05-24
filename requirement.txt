@@ -8,3 +8,4 @@ librosa
 transformers
 pytorch-lightning
 sklearn
+matplotlib
