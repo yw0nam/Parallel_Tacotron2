@@ -9,9 +9,11 @@ data_config = DataConfig(
 )
 train_config = TrainConfig(
     batch_size=4,
+    lr=0.005,
     checkpoint_path=os.path.join(save_path, 'checkpoint'),
     log_dir=os.path.join(save_path, 'tensorboard'),
-    exp_name='test',
+    log_version=None,
+    exp_name='test_1',
     gradient_clip=0.2,
     accumulate_grad=16,
     resume_from_checkpoint=None

@@ -38,22 +38,12 @@ model = PL_model(
 # %%
 out = model(input_)
 # %%
-out['W'].size()
+out.keys()
 # %%
-plt.imshow(out['attn'].detach()[0].numpy())
+out['dur'].sum(-1)
 # %%
-fig = plt.figure(figsize=(25, 15))
-for i in range(1, 5):
-    ax = fig.add_subplot(4, 1, i)
-    ax.imshow(out['attn'].detach()[i-1])
-    ax.set_title("attention_%d"%i)
+mae_loss = nn.L1Loss()
 
 # %%
-writer = SummaryWriter()
-writer.add_figure('attention', fig, 0)
-writer.add_image('attn_2', out['attn'][1], 0, dataformats='HW')
-writer.add_image('attn_3', out['attn'][2], 0, dataformats='HW')
-writer.add_image('attn_4', out['attn'][3], 0, dataformats='HW')
-
-
+mae_loss(out['dur'].sum(-1), label['mel_length'])
 # %%

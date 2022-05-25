@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from utils import get_sinusoid_encoding_table, get_mask_from_lengths
 import numpy as np
+
 class TextEncdoer(nn.Module):
     def __init__(self, model_config, vocab_size, activation=nn.ReLU()):
         super(TextEncdoer, self).__init__()
@@ -325,7 +326,7 @@ class Decoder(nn.Module):
                 :, :max_len, :
             ].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
-
+        
         for i, (conv, linear) in enumerate(zip(self.lconv_blocks, self.projection)):
             x = x.masked_fill(mask.unsqueeze(-1), 0)
             x = torch.tanh(conv(

@@ -42,7 +42,7 @@ def fit_model(model_config, data_config, train_config):
         mode="max",
     )
     
-    logger = TensorBoardLogger(train_config.log_dir, name=train_config.exp_name)
+    logger = TensorBoardLogger(train_config.log_dir, name=train_config.exp_name, version=train_config.log_version)
     lr_monitor = LearningRateMonitor(logging_interval='step')
     
     trainer = pl.Trainer(
@@ -50,7 +50,7 @@ def fit_model(model_config, data_config, train_config):
         devices=num_gpu,
         strategy="ddp",
         max_steps=train_config.training_step,
-        checkpoint_callback=True,
+        enable_checkpointing=True,
         callbacks=[checkpoint_callback, lr_monitor],
         precision=16,
         amp_backend="native",
@@ -58,6 +58,5 @@ def fit_model(model_config, data_config, train_config):
         accumulate_grad_batches=train_config.accumulate_grad,
         logger=logger,
         gradient_clip_val=train_config.gradient_clip,
-        resume_from_checkpoint=train_config.resume_from_checkpoint
     )
-    trainer.fit(model)
+    trainer.fit(model, ckpt_path=train_config.resume_from_checkpoint)

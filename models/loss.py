@@ -19,7 +19,7 @@ class ParallelTacotron2Loss(nn.Module):
             gamma=train_config.gamma,
             warp=train_config.warp
         )
-        self.mae_loss = nn.L1Loss(reduction='none')
+        self.mae_loss = nn.L1Loss()
 
     def kl_anneal(self, step):
         if step < self.start:
@@ -45,8 +45,7 @@ class ParallelTacotron2Loss(nn.Module):
         mel_loss = (mel_iter_loss / (len(mel_iters) * mel_length)).mean()
 
         # Duration Loss
-        duration_loss = self.lambda_ * \
-            (self.mae_loss(dur.sum(-1), mel_length) / text_length).mean()
+        duration_loss = self.lambda_ * (self.mae_loss(dur.sum(-1), mel_length))
 
         # KL Divergence Loss
         beta = torch.tensor(self.kl_anneal(step))

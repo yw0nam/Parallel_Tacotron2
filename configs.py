@@ -53,6 +53,7 @@ class TrainConfig():
     exp_name: str = './models'
     checkpoint_path: str = 'checkpoint/'
     log_dir: str = 'tensorboard/'
+    log_version: str = None
     attn_draw_step: int = 1000
     num_workers: int = 8
     accumulate_grad: int = 16
@@ -60,6 +61,7 @@ class TrainConfig():
     anneal_steps: list = field(default_factory=lambda: [3e+5, 4e+5, 5e+5])
     anneal_rate: float = 0.3
     resume_from_checkpoint: str = None
+    
     # ==================== #
     #     Loss Config      #
     # ==================== #
