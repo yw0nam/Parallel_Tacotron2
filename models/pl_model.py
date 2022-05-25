@@ -63,7 +63,7 @@ class PL_model(pl.LightningModule):
                     ax.set_title("attention_%d" % i)
                 # self.writer.add_figure('attention', fig, self.global_step)
                 self.logger.experiment.add_figure(
-                    'attention', fig, self.global_step)
+                    'attention_%d'%(self.global_step), fig, self.global_step)
                 self.draw_step += self.train_config.attn_draw_step
                 plt.close('all')
                 break

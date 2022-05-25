@@ -37,7 +37,7 @@ def fit_model(model_config, data_config, train_config):
     checkpoint_callback = plc.ModelCheckpoint(
         monitor="step",
         dirpath=os.path.join(train_config.checkpoint_path, train_config.exp_name),
-        filename="{step:06d}-{val_total_loss:.5f}",
+        filename="{step:06d}",
         save_top_k=5,
         mode="max",
     )
