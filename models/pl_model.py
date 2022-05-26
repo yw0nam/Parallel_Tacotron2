@@ -53,7 +53,7 @@ class PL_model(pl.LightningModule):
         return preds
     
     def validation_epoch_end(self, validation_step_outputs):
-        if self.draw_step >= self.global_step:
+        if self.draw_step <= self.global_step:
             for out in validation_step_outputs:
                 attn = out['attn'].detach().cpu()
                 fig = plt.figure(figsize=(25, 15))

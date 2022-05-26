@@ -49,7 +49,7 @@ class TTSdataset(Dataset):
         wav_name = self.landmarks_frame['wav_name'].iloc[idx]
         wav_path = os.path.join(self.config.root_dir,
                                 'wavs', wav_name) + '.wav'
-        text = self.landmarks_frame['text_1'].iloc[idx]
+        text = self.landmarks_frame['text_2'].iloc[idx]
         cache_path = os.path.join(
             self.config.phoneme_cache_path, wav_name+'.npy')
 

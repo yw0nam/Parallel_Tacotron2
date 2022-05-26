@@ -17,7 +17,7 @@ def fit_model(model_config, data_config, train_config):
     
     train_loader = DataLoader(train_dataset, train_config.batch_size, num_workers=train_config.num_workers,
                             collate_fn=Transformer_Collator(),
-                            pin_memory=True, shuffle=True)
+                            pin_memory=True, shuffle=False)
     
     val_loader = DataLoader(val_dataset, train_config.batch_size, 
                             num_workers=train_config.num_workers,
