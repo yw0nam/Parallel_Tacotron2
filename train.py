@@ -2,6 +2,7 @@ from configs import *
 import os
 from models.trainer import fit_model
 
+## root path for saving checkpoints and tensorboard 
 save_path = '/data1/spow12/model_weights/TTS/parallel_tacotron2/'
 
 data_config = DataConfig(
