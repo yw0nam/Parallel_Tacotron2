@@ -1,7 +1,7 @@
 gruut
 anyascii
 inflect
-MeCab
+mecab-python3
 num2words
 pandas
 librosa
@@ -9,3 +9,4 @@ transformers
 pytorch-lightning
 sklearn
 matplotlib
+fairscale
