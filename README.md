@@ -73,6 +73,11 @@ CUDA_VISIBLE_DEVICES=0,1 python train.py
 
 it will be published soon,
 
+# Issue
+
+Half precision with Deepspeed cause nan value in SoftDTW.
+
+
 # Special Thanks
 
 Many parts of my codes were come from [keonlee9420](https://github.com/keonlee9420)
