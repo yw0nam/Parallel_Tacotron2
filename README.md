@@ -1,6 +1,10 @@
 # Parallel_Tacotron2
 
-Unofficial Pytorch implementation of [Parallel Tacotron2](https://arxiv.org/abs/2103.14574) with pytorch lightning.
+<p align="center">
+<img src="fig/parallel_tacotron2_figure1.PNG"> 
+</p>
+
+Unofficial Pytorch implementation of [Parallel Tacotron2](https://arxiv.org/abs/2103.14574) with [pytorch lightning.](https://www.pytorchlightning.ai/)
 
 # Installation
 ## Requirements
@@ -68,3 +72,7 @@ CUDA_VISIBLE_DEVICES=0,1 python train.py
 # Result,
 
 it will be published soon,
+
+# Special Thanks
+
+Many parts of my codes were come from [keonlee9420](https://github.com/keonlee9420)
