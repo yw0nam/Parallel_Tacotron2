@@ -2,6 +2,7 @@ gruut
 anyascii
 inflect
 mecab-python3
+unidic-lite
 num2words
 pandas
 librosa
