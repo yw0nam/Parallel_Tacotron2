@@ -38,6 +38,7 @@ class TTSdataset(Dataset):
             normalized=False
         )
         try:
+            os.mkdir(self.config.mel_cache_path)
             os.mkdir(self.config.phoneme_cache_path)
         except:
             pass
@@ -50,11 +51,13 @@ class TTSdataset(Dataset):
         wav_path = os.path.join(self.config.root_dir,
                                 'wavs', wav_name) + '.wav'
         text = self.landmarks_frame['text_2'].iloc[idx]
-        cache_path = os.path.join(
+        text_cache_path = os.path.join(
             self.config.phoneme_cache_path, wav_name+'.npy')
-
+        mel_cache_path = os.path.join(
+            self.config.mel_cache_path, wav_name+'.npy')
+        
         if self.config.use_phonemes:
-            seq = TTSdataset._load_or_generate_phoneme_sequence(text, wav_name, cache_path,
+            seq = TTSdataset._load_or_generate_phoneme_sequence(text, wav_name, text_cache_path,
                                                                 self.config.cleaners,
                                                                 self.config.language,
                                                                 self.config.enable_eos_bos)
@@ -67,7 +70,11 @@ class TTSdataset(Dataset):
                 dtype=np.int32,
             )
 
-        mel = self.load_wav(wav_path)
+        try:
+            mel = np.load(mel_cache_path)
+        except FileNotFoundError:
+            mel = self.load_wav(wav_path, mel_cache_path)
+            
         pos_text = np.arange(1, len(seq) + 1)
         pos_mel = np.arange(1, mel.shape[0] + 1)
         speaker_id = self.landmarks_frame['speaker_id'].iloc[idx]
@@ -86,7 +93,7 @@ class TTSdataset(Dataset):
         sample = self._load_data(idx)
         return sample
 
-    def load_wav(self, filename):
+    def load_wav(self, filename, cache_path):
         wav, _ = torchaudio.load(filename)
         margin = int(self.config.sr * 0.01)
         wav = librosa.effects.trim(
@@ -97,7 +104,9 @@ class TTSdataset(Dataset):
                     self.config.min_level_db) / (-self.config.min_level_db)
         mel_norm = ((2 * self.config.max_norm) * mel_norm) - self.config.max_norm
         mel_norm_cliped = np.clip(mel_norm, -self.config.max_norm, self.config.max_norm)
-        return mel_norm_cliped.squeeze().transpose(1, 0)
+        out_mel = mel_norm_cliped.squeeze().transpose(1, 0)
+        np.save(cache_path, out_mel)
+        return out_mel
     
     @staticmethod
     def _generate_and_cache_phoneme_sequence(
@@ -151,20 +160,6 @@ class Transformer_Collator():
         text_length = [len(d['text']) for d in batch]
         mel_length = [len(d['mel']) for d in batch]
         
-        
-        text = [i for i, _ in sorted(
-            zip(text, text_length), key=lambda x: x[1], reverse=True)]
-        mel = [i for i, _ in sorted(
-            zip(mel, text_length), key=lambda x: x[1], reverse=True)]
-        pos_text = [i for i, _ in sorted(
-            zip(pos_text, text_length), key=lambda x: x[1], reverse=True)]
-        pos_mel = [i for i, _ in sorted(
-            zip(pos_mel, text_length), key=lambda x: x[1], reverse=True)]
-        mel_length = [i for i, _ in sorted(
-            zip(mel_length, text_length), key=lambda x: x[1], reverse=True)]
-        text_length = [i for i in sorted(
-            zip(text_length), key=lambda x: x[0], reverse=True)]        
-        
         text =_prepare_data(text).astype(np.int32)
         mel = _pad_mel(mel)
         pos_mel = _prepare_data(pos_mel).astype(np.int32)
@@ -185,9 +180,7 @@ class Transformer_Collator():
     
 class PartitionPerEpochDataModule(pl.LightningDataModule):
 
-    def __init__(
-        self, batch_size, config, num_workers=4
-    ):
+    def __init__(self, config, batch_size, num_workers):
         super().__init__()
         self.config = config
         self.batch_size = batch_size
@@ -200,8 +193,7 @@ class PartitionPerEpochDataModule(pl.LightningDataModule):
         Anything called here is being distributed across GPUs
         (do many times).  Lightning handles distributed sampling.
         """
-        # Build the val dataset
-        
+
         self.val_dataset = TTSdataset(self.config,  train=False)
         self.train_dataset = TTSdataset(self.config,  train=True)
         
@@ -217,15 +209,15 @@ class PartitionPerEpochDataModule(pl.LightningDataModule):
             self.train_dataset,
             self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=Transformer_Collator(self.preprocessor),
+            collate_fn=Transformer_Collator(),
             pin_memory=True,
-            shuffle=True
+            shuffle=False
         )
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
             self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=Transformer_Collator(self.preprocessor),
+            collate_fn=Transformer_Collator(),
             pin_memory=True,
         )

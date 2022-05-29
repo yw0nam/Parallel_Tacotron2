@@ -5,6 +5,7 @@ from configs import *
 from dataset import Transformer_Collator, TTSdataset
 from torch.utils.data import DataLoader
 import torch
+from models.loss import ParallelTacotron2Loss
 from models.soft_dtw_cuda import SoftDTW
 from models.pl_model import PL_model
 # %%
@@ -19,7 +20,7 @@ config = DataConfig(
 )
 # %%
 dataset = TTSdataset(config)
-train_loader = DataLoader(dataset, 32, num_workers=8,
+train_loader = DataLoader(dataset, 8, num_workers=8,
                             collate_fn=Transformer_Collator(), 
                             pin_memory=True,shuffle=False)
 
@@ -32,23 +33,24 @@ model = PL_model(
     config.vocab_size,
     config.n_mels,
     config.speaker_num
-)
-# %%
-model = model.load_from_checkpoint(
-    '/data1/spow12/model_weights/TTS/parallel_tacotron2//checkpoint/test_1/step=007546.ckpt')
-model.cuda()
+).cuda()
 # %%
 for i in tqdm(train_loader):
     input_, label = i
     for key in input_:
         input_[key] = input_[key].cuda()
+    for key in label:
+        label[key] = label[key].cuda()
     out = model(input_)
+    break
 # %%
-out = model(input_)
+out
 # %%
-out['dur'].sum(-1)
+from models.loss import ParallelTacotron2Loss
+pt_loss = ParallelTacotron2Loss(train_config)
 # %%
-plt.imshow(out['attn'][3].detach().numpy())
+with torch.autocast(device_type='cuda'):
+    loss = pt_loss(out, label, 0)
 # %%
-mae_loss(out['dur'].sum(-1), label['mel_length'])
+loss
 # %%

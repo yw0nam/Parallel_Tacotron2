@@ -53,17 +53,24 @@ class PL_model(pl.LightningModule):
         return preds
     
     def validation_epoch_end(self, validation_step_outputs):
+        plt.rcParams['font.size'] = '16'
         if self.draw_step <= self.global_step:
             for out in validation_step_outputs:
-                attn = out['attn'].detach().cpu()
-                fig = plt.figure(figsize=(25, 15))
-                for i in range(1, self.train_config.batch_size + 1):
-                    ax = fig.add_subplot(self.train_config.batch_size, 1, i)
-                    ax.imshow(attn[i-1])
-                    ax.set_title("attention_%d" % i)
+                Ws = out['W'].detach().cpu()
+                fig = plt.figure(figsize=(20, 10))
+                for i in range(1, 3):
+                    xlims = Ws[i-1].shape[1]
+                    ax = fig.add_subplot(2, 1, i)
+                    im = ax.imshow(Ws[i-1], origin='lower', aspect='auto')
+                    ax.set_xlabel('Decoder timestep')
+                    ax.set_ylabel('Encoder timestep')
+                    ax.set_xlim(0, xlims)
+                    ax.tick_params(labelsize="x-small")
+                    ax.set_anchor("W")
+                    fig.colorbar(im)
                 # self.writer.add_figure('attention', fig, self.global_step)
                 self.logger.experiment.add_figure(
-                    'attention_%d'%(self.global_step), fig, self.global_step)
+                    'log_%d'%(self.global_step), fig, self.global_step)
                 self.draw_step += self.train_config.attn_draw_step
                 plt.close('all')
                 break

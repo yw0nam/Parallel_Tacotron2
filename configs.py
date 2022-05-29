@@ -21,6 +21,7 @@ class DataConfig():
     ref_db: int = 20
     max_norm: int = 1
     speaker_num: int = 1
+    mel_cache_path: str = './mels/'
     # ==================== #
     #     Text Config      #
     # ==================== #
@@ -49,14 +50,14 @@ class TrainConfig():
     warmup_step: int = 1e+4
     training_step: int = 5e+5
     lr: float = 0.005
-    batch_size: int = 4
+    batch_size: int = 8
     exp_name: str = './models'
     checkpoint_path: str = 'checkpoint/'
     log_dir: str = 'tensorboard/'
     log_version: str = None
     attn_draw_step: int = 1000
     num_workers: int = 8
-    accumulate_grad: int = 16
+    accumulate_grad: int = 8
     gradient_clip: float = 0.2
     anneal_steps: list = field(default_factory=lambda: [3e+5, 4e+5, 5e+5])
     anneal_rate: float = 0.3
