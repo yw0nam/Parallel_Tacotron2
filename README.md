@@ -71,7 +71,18 @@ CUDA_VISIBLE_DEVICES=0,1 python train.py
 
 # Result,
 
-it will be published soon,
+<p align="center">
+<img src="fig/decoder_encoder.PNG"> 
+</p>
+<p align="center">
+<img src="fig/duration_kl_loss.PNG"> 
+</p>
+<p align="center">
+<img src="fig/total_mel_loss.PNG"> 
+</p>
+
+The model isn't converge.
+I assume this caused by low batch size(4 per 1 gpu)
 
 # Issue
 
