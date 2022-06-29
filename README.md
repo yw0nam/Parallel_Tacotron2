@@ -82,7 +82,7 @@ CUDA_VISIBLE_DEVICES=0,1 python train.py
 </p>
 
 The model isn't converge.
-I assume this caused by low batch size(4 per 1 gpu)
+I presume this due to the low batch size
 
 # Issue
 
